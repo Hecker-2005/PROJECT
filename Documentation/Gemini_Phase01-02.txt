@@ -1,0 +1,151 @@
+Project Documentation: AICyberDefense
+
+Current Status: Phase 2B (Deep Learning Baseline) Date: December 30, 2025
+1. Project Overview
+
+AICyberDefense is an offline, AI-driven cybersecurity system designed to detect threats across two distinct domains: Network Traffic (NIDS) and Endpoint Telemetry (Host-IDS via USB logs). The project evolution follows a phased approach:
+
+    Phase 1: Data Foundation (Ingestion, Cleaning, Unification).
+
+    Phase 2: Baseline Modeling (Classical Unsupervised vs. Deep Unsupervised).
+
+    Phase 3: Adversarial Hardening (Robustness against FGSM/PGD attacks).
+
+2. Phase 1: Data Foundation & Schema Analysis
+A. The Goal
+
+To create a unified, model-ready dataset structure by merging three disparate sources:
+
+    CICIDS 2017: High-volume network flow data (Modern attacks).
+
+    UNSW-NB15: Network data with strong protocol/content features.
+
+    USB Intrusion Logs: (Assumed/Future) Endpoint event logs.
+
+B. Research Request (GPT-5)
+
+    Analyze schemas, correlations, and redundancies for all three datasets.
+
+    Recommend normalization strategies.
+
+    Propose a Unified Schema to merge network and endpoint data.
+
+    Identify high-value features based on 2023–2025 research.
+
+C. Research Findings & Decisions (Gemini)
+
+    Multi-Modal Strategy: We cannot merge these into a flat table. The system must use a Multi-Head Input approach:
+
+        Head A: Network Vector (~50 numerical flow features).
+
+        Head B: Endpoint Vector (Categorical process/event features).
+
+    Preprocessing Standards:
+
+        Normalization: StandardScaler (Z-score) for numerical features.
+
+        Encoding: LabelEncoder + OneHotEncoder for categorical targets.
+
+    Unified Label Mapping (The "7-Class" Schema):
+
+        0: BENIGN (Normal / Benign)
+
+        1: ATTACK_DOS (DoS / DDoS)
+
+        2: ATTACK_SURVEILLANCE (PortScan / Reconnaissance)
+
+        3: ATTACK_C2_MALWARE (Botnet / Infiltration / Backdoor)
+
+        4: ATTACK_ENDPOINT_EXPLOIT (BadUSB / HID)
+
+        5: ATTACK_WEB_EXPLOIT (Web Attack / SQLi / XSS)
+
+        6: ATTACK_DATA_EXFIL (Exfiltration)
+
+3. Phase 2A: Classical Baseline (Isolation Forest)
+A. The Goal
+
+To establish a fast, lightweight, unsupervised anomaly detection baseline that does not require GPU training, serving as a benchmark for future deep learning models.
+B. Research Request (GPT-5)
+
+    Benchmark Isolation Forest (iForest) usage in modern NIDS research.
+
+    Provide hyperparameter guidance (n_estimators, max_samples, contamination).
+
+    Define evaluation metrics for unsupervised models with available labels.
+
+C. Research Findings & Configuration (Gemini)
+
+    Why Isolation Forest? It is the "gold standard" for linear-time O(n) anomaly detection. It isolates outliers rather than profiling normal data.
+
+    Recommended Configuration:
+
+        n_estimators: 100–200 (Diminishing returns beyond this).
+
+        max_samples: 256 (The "magic number" to prevent swamping).
+
+        contamination: 'auto' (Train unsupervised; tune threshold dynamically during validation).
+
+        max_features: 1.0 (Use all selected features).
+
+        bootstrap: False.
+
+    Evaluation Strategy:
+
+        Primary Metric: PR-AUC (Precision-Recall Area Under Curve) due to high class imbalance.
+
+        Thresholding: Do not use .predict(). Use .decision_function(), calculate scores, and find the threshold that maximizes the F1-Score on the validation set.
+
+4. Phase 2B: Deep Learning Baseline (PyTorch Autoencoder)
+A. The Goal
+
+To design a Neural Network baseline that learns correlations between features (which iForest misses) and is prepared for future adversarial hardening.
+B. Research Request (GPT-5)
+
+    Recommend a model architecture (Autoencoder vs. VAE vs. MLP).
+
+    Design the specific layer structure for ~50 input features.
+
+    Define training protocols (Benign-only vs. Mixed).
+
+    Ensure readiness for Phase 3 (Adversarial Training).
+
+C. Research Findings & Architecture (Gemini)
+
+    Model Choice: Bottleneck Autoencoder (AE).
+
+        Rationale: VAEs add unnecessary noise for pure detection; MLPs require supervised labels. AEs are the standard deep unsupervised baseline.
+
+    Architecture Design:
+
+        Input: ~50 Features.
+
+        Encoder: [50 -> 32 -> 16 -> 8] (Latent Dim = 8).
+
+        Decoder: [8 -> 16 -> 32 -> 50].
+
+        Activations: ReLU or LeakyReLU for hidden layers; Linear (No activation) for output (to handle Z-score scaled data).
+
+    Training Protocol:
+
+        Data: Train on Benign-Only samples.
+
+        Loss Function: MSELoss (Mean Squared Error).
+
+        Optimizer: Adam (lr=1e-3).
+
+    Anomaly Scoring:
+
+        Score = Reconstruction Error (MSE between Input and Output).
+
+        Threshold = 95th or 99th percentile of MSE on the Benign Validation set.
+
+5. Summary of Accomplishments (So Far)
+
+    Data Ready: CICIDS2017 and UNSW-NB15 are cleaned, feature-selected (Top 50), and scaled.
+
+    Baseline 1 Complete: Isolation Forest logic is defined and researched.
+
+    Baseline 2 Designed: PyTorch Autoencoder architecture is frozen and ready for implementation.
+
+    Roadmap Clear: The project is perfectly set up for Phase 3, where we will generate adversarial examples (FGSM) to break these baselines and then harden them.

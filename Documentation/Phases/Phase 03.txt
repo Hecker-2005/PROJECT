@@ -1,0 +1,169 @@
+Phase 03 — Adversarial Testing & Hardening
+
+Execution begins now. Phase 01–02 are assumed complete and frozen. The Phase_01–Phase_02 mental state is loaded.
+
+Below is the exact, implementation-ready plan I will follow, step by step. No research steps remain.
+
+Step 0 — Ground Rules (Locked)
+
+Dataset: CICIDS2017 (reconstructed, BENIGN present)
+
+Features: 50 frozen, Z-score normalized
+
+Model under test: PyTorch bottleneck Autoencoder (benign-only)
+
+Objective: Measure and improve adversarial robustness under valid constraints
+
+
+
+Step 1 — Validity Filter (Implement First)
+
+Create a hard gate that rejects invalid adversarial samples.
+
+Constraints enforced:
+
+Non-negativity for all rate/count features
+
+Integer rounding for count features
+
+Immutable features locked (protocol, ports, identifiers)
+
+Dependency repair:
+
+TotalBytes ≥ FwdBytes + BwdBytes
+
+FlowDuration ≥ sum(IATs)
+
+Protocol ↔ flag consistency
+
+Rule:
+Any sample violating constraints is discarded and not counted toward attack success.
+
+
+
+Step 2 — Baseline Adversarial Sanity Check
+
+FGSM (baseline only)
+
+Purpose: Demonstrate invalidity of naive attacks on tabular NIDS
+
+Expectation:
+
+High theoretical success
+
+Near-zero valid success after filtering
+
+Metrics logged:
+
+PR-AUC (clean vs FGSM)
+
+Valid Attack Success Rate
+
+
+
+Step 3 — Primary Attack Implementation
+
+CAPGD (Constrained Adaptive PGD)
+
+Configuration:
+
+Perturbation space: mutable features only
+
+Projection after every step via Validity Filter
+
+Epsilon schedule (Z-score space):
+ε ∈ {0.02, 0.05, 0.10, 0.15}
+
+Optimized objective:
+
+Minimize reconstruction error
+
+Penalize constraint violations
+
+This represents the minimum credible adversary.
+
+
+
+Step 4 — Evaluation Protocol (Authoritative)
+
+Metrics captured at each ε:
+
+Core
+
+PR-AUC degradation (Δ PR-AUC)
+
+Recall @ fixed FPR = 1%
+
+Threshold shift (τ_clean → τ_adv)
+
+Validity-aware
+
+Valid Attack Success Rate
+
+Constraint Satisfaction Rate
+
+Stealth (diagnostic)
+
+L0 sparsity (# modified features)
+
+Mahalanobis distance to benign centroid
+
+
+
+Step 5 — Lightweight Defenses (Apply Incrementally)
+Defense 1 — Feature Squeezing (Mandatory)
+
+Precision reduction on continuous features
+
+Applied before inference
+
+Re-run CAPGD evaluation
+
+Defense 2 — Robust Loss (Training-Time)
+
+Replace MSE with Huber Loss
+
+Retrain AE on benign data
+
+Re-run full adversarial evaluation
+
+
+
+Step 6 — Architecture Decision Point (Critical)
+
+Based on CAPGD results after defenses, decide:
+
+If reconstruction remains exploitable:
+
+Freeze AE encoder
+
+Train One-Class SVM on latent vectors (OCSVM-AE)
+
+If stronger geometry is required:
+
+Migrate to Deep SVDD (AE → SVDD hybrid)
+
+No model expansion. No overcomplete latent spaces.
+
+
+
+Step 7 — Phase 03 Outputs (Artifacts)
+
+Adversarial robustness report (ε-wise)
+
+Threshold shift analysis
+
+Valid vs invalid attack comparison
+
+Final architecture decision
+
+Persisted models + metrics
+
+Execution Status
+
+Phase 03 is now active.
+
+Next action (automatic):
+I will start with Validity Filter design, then move directly into FGSM baseline and CAPGD implementation.
+
+If you want to pause, inspect, or modify any step, say so explicitly. Otherwise, execution proceeds in the order above.

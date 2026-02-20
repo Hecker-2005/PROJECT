@@ -1,0 +1,404 @@
+Phase 01 – Data Foundation & Feature Engineering
+Objective
+
+Establish a clean, realistic, and scientifically valid data foundation for downstream anomaly detection and deep learning models.
+
+Datasets Used
+Primary Dataset
+
+CICIDS2017
+
+Multiple daily CSV files containing BENIGN and attack traffic
+
+Attack types include: DDoS, DoS, PortScan, Bot, Web Attacks, Infiltration, etc.
+
+Secondary Dataset
+
+UNSW-NB15
+
+Included for future cross-dataset generalization
+
+Not used directly for feature selection or Phase 02 evaluation due to schema mismatch
+
+Critical Issue Discovered (and Resolved)
+Initial Problem
+
+Early preprocessing runs showed:
+
+Attack_Class == 0 (BENIGN) missing
+
+Dataset effectively contained attack-only traffic
+
+This caused:
+
+ROC-AUC = NaN
+
+PR-AUC = 1.0 (degenerate)
+
+Autoencoder training failing due to empty benign set
+
+Root Cause
+
+CICIDS CSVs with BENIGN traffic were not included in the merge
+
+Some subsets (e.g., DDoS-only days) were merged alone
+
+orrect Dataset Rebuild (Authoritative Fix)
+Merge Strategy
+
+Rebuilt CICIDS2017 by explicitly merging:
+
+BENIGN-containing days
+
+Attack-containing days
+
+Ensured no duplicate inclusion of previously merged files
+
+Verified Label Distribution (Post-Merge)
+
+BENIGN                        ~4.5 million
+DoS Hulk                      ~462k
+PortScan                      ~318k
+DDoS                           ~256k
+Other attacks                  smaller counts
+
+This confirmed:
+
+Realistic class imbalance
+
+Presence of benign traffic
+
+Scientifically valid anomaly detection setup
+
+Preprocessing Pipeline
+Steps Performed
+
+CSV ingestion (memory-safe)
+
+Label normalization into Attack_Class
+
+0 → BENIGN
+
+>0 → attack families
+
+-1 → unmapped / rare labels (kept, treated as attacks)
+
+Dropped non-numerical features
+
+Replaced:
+
+inf, -inf → NaN
+
+NaN → 0
+
+Clipped extreme outliers (quantile-based)
+
+Persisted cleaned datasets as Parquet
+
+Outputs:
+1_Preprocessing/
+ ├── cicids_clean.parquet
+ ├── unsw_clean.parquet
+ ├── label_map.joblib
+
+
+Feature Engineering
+Design Decision
+
+Feature selection performed ONLY on CICIDS
+
+UNSW excluded to avoid schema leakage
+
+Feature Selection Method
+
+Correlation pruning (threshold ≈ 0.95)
+
+Mutual Information ranking
+
+Top 50 network features selected
+
+Scaling
+
+StandardScaler (Z-score)
+
+Fitted on CICIDS only
+
+Persisted for reuse
+
+Outputs:
+1_Preprocessing/
+ ├── scaler_persistence.pkl
+
+
+Phase 01 Final State
+
+Clean, realistic dataset
+
+BENIGN and attack classes verified
+
+50 high-value network features frozen
+
+Scaler frozen
+
+Ready for modeling
+
+
+Phase 02 – Baseline Models
+
+Phase 02 establishes reference performance before adversarial hardening.
+
+It is split into two sub-phases:
+
+Phase 2A: Classical Unsupervised Baseline (Isolation Forest)
+
+Phase 2B: Deep Learning Baseline (PyTorch Autoencoder)
+
+Phase 2A – Isolation Forest (Classical Baseline)
+Purpose
+
+Establish a fast, classical anomaly detection baseline to quantify how much learning feature correlations helps.
+
+Implementation
+
+Isolation Forest implemented from scratch
+
+No sklearn model shortcuts
+
+Path-length–based anomaly scoring
+
+Training
+
+Trained on CICIDS features
+
+Unsupervised (no labels used during fitting)
+
+Evaluation Metrics
+
+ROC-AUC
+
+PR-AUC (primary due to imbalance)
+
+Threshold via F1 maximization
+
+Results (After Dataset Fix):
+ROC-AUC ≈ 0.50
+PR-AUC  ≈ 0.58
+
+
+Interpretation
+
+ROC-AUC = 0.5 → random ranking
+
+Weak PR-AUC driven by class imbalance
+
+Model fails to exploit correlated feature structure
+
+Confirms known limitations of axis-parallel isolation
+
+Decision
+
+Isolation Forest is not competitive on realistic CICIDS
+
+Serves only as a weak reference baseline
+
+
+Phase 2B – PyTorch Autoencoder (Deep Baseline)
+Purpose
+
+Demonstrate the benefit of representation learning over classical anomaly detection.
+
+Model Choice
+
+Bottleneck Autoencoder
+
+Unsupervised
+
+Benign-only training
+
+Reconstruction-error–based anomaly detection
+
+Architecture:
+Input (50)
+ → 32
+ → 16
+ → 8   (latent bottleneck)
+ → 16
+ → 32
+ → Output (50)
+
+
+Design Details
+
+Activation: LeakyReLU
+
+Output layer: Linear (important due to Z-scored inputs)
+
+BatchNorm after hidden layers
+
+Dropout (encoder only)
+
+Device-agnostic (CPU/GPU)
+
+Training Strategy
+
+Training set: BENIGN traffic only (Attack_Class == 0)
+
+Loss: Mean Squared Error (MSE)
+
+Optimizer: Adam (lr=1e-3, weight_decay=1e-5)
+
+Batch size: 128
+
+Epochs: up to 100
+
+Early stopping: patience = 5
+
+Training Behavior
+
+MSE dropped smoothly
+
+Converged around ~0.15
+
+Early stopping triggered correctly
+
+No overfitting or collapse observed
+
+Evaluation Strategy
+Anomaly Score
+
+Reconstruction error: MSE(x, x_hat)
+
+Threshold
+
+95th percentile of BENIGN reconstruction error
+
+Statistically derived, no label leakage
+
+Metric
+
+PR-AUC (primary)
+
+Phase 2B Results:
+Autoencoder PR-AUC: 0.6738
+Anomaly Threshold: 0.130071
+
+Interpretation
+
+Non-degenerate PR-AUC
+
+Clear improvement over Isolation Forest
+
+Demonstrates learning of benign correlation structure
+
+Still imperfect → leaves room for robustness improvements
+
+Phase 02 Comparative Summary:
+Model,	ROC-AUC,	PR-AUC,	Interpretation
+Isolation Forest,	~0.50,	~0.58,	Near-random, rarity-based
+Autoencoder,	N/A,	~0.67,	Learns correlated structure
+
+Key Insight
+
+Learning representations matters.
+Classical anomaly detection is insufficient for realistic NIDS.
+
+Phase 02 Final Status
+
+Classical baseline established
+
+Deep baseline established
+
+Performance gap demonstrated
+
+Dataset realism verified
+
+Justification for adversarial robustness proven
+
+Transition to Phase 03
+Why Phase 03 Is Required
+
+Despite outperforming Isolation Forest, the autoencoder:
+
+Is vulnerable to small perturbations
+
+Has no adversarial awareness
+
+Can be exploited by gradient-based attacks
+
+Is not deployment-robust
+
+Phase 03 Will Focus On
+
+Treating the autoencoder as a victim model
+
+Generating adversarial perturbations (FGSM-style)
+
+Measuring PR-AUC degradation under attack
+
+Hardening the model via adversarial training
+
+Comparing clean vs adversarial performance
+
+Instruction for Continuation
+
+In the new chat:
+
+“Proceed with Phase 03 – Adversarial Testing.”
+
+The system should load this document (Phase_01-Phase_02.txt) and continue without re-explaining Phase 01 or Phase 02.
+
+Below is the file structure of the current PROJECT folder:
+
+PROJECT/
+│
+├── 0_Datasets/
+│   ├── CICIDS2017/
+│   │   ├── cicids2017.csv                # FINAL merged CICIDS dataset (with BENIGN)
+│   │   └── UNMERGED_DATASETS/             # Raw CICIDS daily CSVs (no merged files)
+│   │
+│   └── UNSW_NB15/
+│       └── UNSW_NB15_training-set.csv
+│
+├── 1_Preprocessing/
+│   ├── data_cleaning.py                  # Cleans raw datasets, maps labels
+│   ├── feature_engineering.py            # Feature selection + scaling
+│   ├── cicids_clean.parquet              # Cleaned CICIDS (used everywhere)
+│   ├── unsw_clean.parquet                # Cleaned UNSW (future use)
+│   ├── scaler_persistence.pkl            # StandardScaler + feature list
+│   └── label_map.joblib                  # Label → Attack_Class mapping
+│
+├── 2_Model_Training/
+│   ├── isolation_forest/                 # Phase 2A – Classical baseline
+│   │   ├── iforest_core.py               # Isolation Forest (from scratch)
+│   │   ├── train_iforest.py              # Train Isolation Forest
+│   │   ├── evaluate_baseline.py          # Evaluate Isolation Forest
+│   │   └── iforest_model.joblib           # Trained IF model
+│   │
+│   └── pytorch_model/                    # Phase 2B – Deep baseline
+│       ├── model_architecture.py         # Autoencoder architecture
+│       ├── train_autoencoder.py           # Benign-only AE training
+│       ├── evaluate_autoencoder.py        # Reconstruction-based evaluation
+│       └── autoencoder.pt                # Trained AE weights
+│
+├── 3_Adversarial_Testing/                # Phase 03 (NEXT – not started)
+│   └── (empty / to be implemented)
+│
+├── 4_Edge_Deployment/                    # Future phase
+│
+├── 5_WindowsAgent/                       # Future phase
+│
+├── 6_Research_&_Benchmarking/             # Papers, comparisons, notes
+│
+├── 7_Documentation/
+│   └── Phase_01-Phase_02.txt              # Continuity document
+│
+├── 8_Tools/
+│
+├── 9_Project_Control/
+│
+├── venv/                                 # Python virtual environment
+│
+└── README.md
+
+
+End of Document.

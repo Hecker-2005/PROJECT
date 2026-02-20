@@ -1,0 +1,81 @@
+This is a sophisticated engineering problem. You are navigating the nuanced intersection of Unsupervised Anomaly Detection and Adversarial ML, where standard supervised robustness metrics (like accuracy drop) do not apply directly.
+
+Below is a research-level review of your setup, interpretation of the "static error" phenomenon, and actionable next steps grounded in 2023–2025 NIDS literature.
+1. Protocol Review: Is Benign-Threshold + Mixed-Evaluation Sound?
+
+Verdict: Yes, this is the gold standard for Unsupervised NIDS.
+
+Your protocol aligns with the "Semi-Supervised Anomaly Detection" (SSAD) evaluation framework used in top-tier security conferences (e.g., CCS, USENIX Security).
+
+    Training on Benign-Only: Essential. If you train on attacks (even blindly), you are doing supervised classification disguised as anomaly detection.
+
+    Calibration on Benign (Fixed FPR): Correct. In NIDS, the operational constraint is always the False Positive Rate. Administrators ignore systems with high FPR. Fixing FPR at 1% (or 0.1%) and measuring Recall (Detection Rate) is the only rigorous way to compare models.
+
+    Evaluation on Mixed: Correct. You must verify that the threshold established on benign data still separates attacks (clean and adversarial) effectively.
+
+The Pitfall to Avoid: Do not mix adversarial samples into the threshold calibration set. The threshold must remain "frozen" from the clean benign state to simulate a deployed sensor facing a sudden zero-day adversarial attack.
+2. The Core Problem: Interpreting "Barely Changing" Reconstruction Error
+
+You noted that CAPGD succeeds mathematically (valid samples found) but the reconstruction error (RE) barely moves. This is a classic "Feature Subspace Mismatch" problem in NIDS.
+
+In image processing, every pixel is mutable. In NIDS, your feature mask likely locks ~50–70% of the features (e.g., Destination Port, Bwd Packet Length, Protocol, Flow Duration dependent stats).
+
+How to Interpret Success vs. Failure:
+
+    Scenario A (Robustness via Invariance): The Autoencoder detects the attack primarily based on Immutable Features (e.g., the attack targets a specific port or induces specific victim-side Bwd responses).
+
+        Result: The attacker mutates Fwd IAT perfectly, but the RE remains high because the AE's loss is dominated by the Bwd features.
+
+        Conclusion: True Robustness (Domain-Driven). The attack failed because the "attack surface" available to the adversary does not intersect with the model's "detection logic."
+
+    Scenario B (Constraint Tightness): The ϵ ball in Z-score space is too small relative to the variance of the mutable features.
+
+        Result: The gradient points to a lower RE, but the projection step snaps the sample back to a high-RE state.
+
+        Conclusion: False Robustness (Constraint-Driven). The model is not robust; the attacker is just too weak.
+
+Diagnostic Test: Calculate the Reconstruction Error contribution of the Mutable Features only.
+REmutable​=∣∣(x⋅mask)−(x^⋅mask)∣∣2​
+
+If REtotal​ is high but REmutable​ drops significantly after CAPGD, your model has been partially evaded, but the immutable features saved you.
+3. Literature Consensus (2023–2025): When is an AE "Robust Enough"?
+
+Recent literature suggests that standard MSE-based Autoencoders are rarely robust enough against adaptive attacks if the attacker has full feature access. However, under realistic NIDS constraints, they survive surprisingly well.
+
+    The Shift: Researchers are moving away from pure Reconstruction Error (MSE) because it is sensitive to "noise" (outliers) but insensitive to "semantic" shifts.
+
+    Modern Architecture Preferences:
+
+        Deep SVDD (Support Vector Data Description): Instead of reconstructing inputs, it maps benign data to a compact hypersphere. It is generally more robust because the decision boundary is a "tight shell" rather than a soft reconstruction mapping.
+
+        MemAE (Memory-augmented Autoencoder): Uses a memory bank of "prototypical" benign patterns. If an input is adversarial, the model retrieves the nearest benign memory item for reconstruction, forcing a high error (robustness by design).
+
+4. Evaluation Pitfalls in Your Setup
+
+    Z-Score Gradient Scaling: You are projecting to an ϵ-ball in Z-score space. Be careful: a "1.0" shift in a feature with low variance is massive, while a "1.0" shift in a high-variance feature is negligible.
+
+        Fix: Ensure your ϵ is defined relative to the feature range or use L∞​ constraints mapped back to raw values to check logical validity.
+
+    The "Gradient Obfuscation" Illusion: If your StandardScaler creates extreme values, or if you use ReLU in the bottleneck, gradients might be vanishing for outliers.
+
+        Check: Plot the gradient magnitudes of the input features during CAPGD. If they are all zero, your attacker is broken, and the model is not actually robust.
+
+5. Recommended Next Step
+
+Do not jump to architectural changes yet. You need to prove why the attack is failing.
+
+Step 1: The "Unconstrained" Sanity Check Run CAPGD again with zero constraints (Mask = 1s, ϵ=∞).
+
+    If the reconstruction error still doesn't drop to benign levels, your CAPGD implementation or gradient calculation is buggy.
+
+    If it does drop (evasion successful), then your current robustness is entirely due to the Constraints (Mask/ϵ).
+
+Step 2: Defensible Defense (If Step 1 confirms valid gradients) If you determine the model relies too heavily on immutable features (which might change in a real zero-day), implement Denoising Training or Latent Space Regularization.
+
+Recommendation: Latent Manifold Defense (Standard in 2024/2025). Instead of just MSE(x,x^), add a constraint that penalizes the latent code z if it falls outside the density of the benign training data.
+
+    Why: Adversarial samples often have low reconstruction error (they look like benign inputs) but map to "empty" regions of the latent space.
+
+    Action: Evaluate simple Deep SVDD or DAGMM (Deep Autoencoding Gaussian Mixture Model) as a comparator.
+
+Final Verdict: Your protocol is sound. Your "barely changing" error is likely due to the feature mask preventing the attacker from altering the dominant error-causing features. Confirm this with the "Unconstrained Sanity Check" before claiming robustness.

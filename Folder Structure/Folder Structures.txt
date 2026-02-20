@@ -1,0 +1,72 @@
+AICyberDefense/
+│
+├── 0_Datasets/
+│   ├── CICIDS2017/
+│   ├── UNSW_NB15/
+│   └── USB_Intrusion_Logs/
+│
+├── 1_Preprocessing/
+│   ├── data_cleaning.py
+│   ├── feature_engineering.py
+│   ├── scaler_persistence.pkl
+│   └── README.md
+│
+├── 2_Model_Training/
+│   ├── isolation_forest/
+│   │   ├── train_isoforest.py
+│   │   └── model_isoforest.joblib
+│   ├── pytorch_model/
+│   │   ├── model_architecture.py
+│   │   ├── train_pytorch.py
+│   │   ├── eval_adversarial.py
+│   │   └── model_checkpoint.pt
+│   └── README.md
+│
+├── 3_Adversarial_Testing/
+│   ├── fgsm_attack.py
+│   ├── pgd_attack.py
+│   ├── autoattack_eval.py
+│   ├── robustness_metrics.json
+│   └── README.md
+│
+├── 4_Edge_Deployment/
+│   ├── edge_agent.py
+│   ├── node_comm_layer.py
+│   └── latency_tests.log
+│
+├── 5_Linux_Runtime/
+│   ├── backend_inference.py
+│   ├── ui_interface/
+│   │   ├── ui_main.py
+│   │   ├── assets/
+│   │   └── styles.css
+│   ├── socket_comm.py
+│   └── README.md
+│
+├── 6_Research_Benchmarking/
+│   ├── papers/
+│   │   ├── adversarial_defense_2024.pdf
+│   │   ├── hybrid_ai_response.pdf
+│   │   └── zero_day_detection_trends.pdf
+│   ├── benchmark_results/
+│   │   ├── enterprise_comparison.xlsx
+│   │   └── latency_comparison.txt
+│   └── README.md
+│
+├── 7_Documentation/
+│   ├── tech_doc.md
+│   ├── executive_summary.md
+│   ├── architecture_diagram.png
+│   └── presentation_slides/
+│
+├── 8_Tools/
+│   ├── gpu_profiler.sh
+│   ├── memory_analyzer.py
+│   └── system_diagnostics.sh
+│
+├── 9_Project_Control/
+│   ├── task_tracker.csv
+│   ├── meeting_notes.md
+│   └── roadmap.md
+│
+└── README.md

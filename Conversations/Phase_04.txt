@@ -1,0 +1,202 @@
+# Phase 04 — Edge Deployment & Defensive Hardening
+
+This document is a **rough but complete implementation log** for Phase 04.
+It is intended for continuity when resuming the project in a new chat and for later formal documentation.
+
+Phase 04 builds **directly on Phase 03**, where the Autoencoder was shown to be **intrinsically robust** under both constrained and unconstrained white-box adversarial attacks.
+
+---
+
+## Phase 04 Goal
+
+**Objective:**
+Prepare the existing Autoencoder-based NIDS for **edge / endpoint deployment** by adding **lightweight, inference-time defenses and operational stability**, without altering the learned manifold or invalidating Phase 03 results.
+
+**Key constraint:**
+No retraining, no architectural changes, no cloud dependencies.
+
+---
+
+## High-Level Design
+
+Phase 04 introduces three components:
+
+1. **Feature Squeezing (Inference-Time Input Hardening)**
+2. **Robust Threshold Stabilization**
+3. **Unified Edge Inference Pipeline**
+
+All defenses are:
+
+* deterministic
+* low-overhead
+* compatible with offline and real-time deployment
+
+---
+
+## Directory Used
+
+```
+P4_Edge_Deployment/
+```
+
+(All references to `P4_Defensive_Hardening` were corrected to `P4_Edge_Deployment` during implementation.)
+
+---
+
+## Step 4.1 — Feature Squeezing
+
+### Purpose
+
+Reduce adversarial gradient resolution by lowering feature precision at inference time, without affecting benign behavior.
+
+This is **defense-in-depth**, not a primary robustness mechanism.
+
+### Files Created
+
+```
+P4_Edge_Deployment/feature_squeezer.py
+```
+
+### Implementation Summary
+
+* Deterministic feature-wise squeezing
+* Operates on NumPy arrays
+* Supports:
+
+  * decimal rounding
+  * integer rounding
+  * conservative clipping
+* Applied **after scaling** and **before model inference**
+
+No randomness, no noise injection, no retraining.
+
+---
+
+## Step 4.2 — Squeezing Rules + Adversarial Evaluation
+
+### Files Created
+
+```
+P4_Edge_Deployment/squeezing_config.py
+P4_Edge_Deployment/evaluate_squeezed_capgd.py
+```
+
+### Squeezing Rules
+
+* Timing statistics → rounded to 2 decimals
+* Rate features → clipped to safe Z-score bounds, then rounded
+* Packet counts / lengths → integer rounding
+* Flags → unchanged
+
+Rules were conservative to avoid harming benign detection.
+
+### Evaluation Performed
+
+CAPGD was re-run with squeezing enabled.
+
+Observed results:
+
+```
+[SQUEEZED] ε = 0.02
+PR-AUC ≈ 0.831
+Recall @ FPR=1% ≈ 0.091
+
+[SQUEEZED] ε = 0.15
+PR-AUC ≈ 0.832
+Recall @ FPR=1% ≈ 0.091
+```
+
+### Interpretation
+
+* Feature squeezing caused **no degradation** in clean or adversarial performance
+* Attack effectiveness did **not improve**
+* Confirms Phase 03 conclusion: robustness is intrinsic, not fragile
+
+---
+
+## Step 4.3 — Threshold Stabilization
+
+### Purpose
+
+Prevent alert instability due to:
+
+* batch effects
+* heavy-tailed benign scores
+* minor distribution drift
+
+### File Created
+
+```
+P4_Edge_Deployment/thresholding.py
+```
+
+### Implementation Summary
+
+* Trimmed quantile thresholding
+* Fixed-FPR calibration (default 1%)
+* Optional hysteresis band
+* Deterministic and edge-safe
+
+This replaces raw quantile thresholding used earlier.
+
+---
+
+## Step 4.4 — Unified Edge Inference Pipeline
+
+### File Created
+
+```
+P4_Edge_Deployment/edge_inference.py
+```
+
+### Purpose
+
+Provide a **single deployable inference object** that encapsulates:
+
+```
+Raw features → scaling → squeezing → reconstruction → thresholding → alert
+```
+
+### Key Class
+
+```python
+class EdgeNIDS:
+    fit_threshold(benign_data)
+    infer(sample)
+```
+
+### Important Notes
+
+* The file is **not meant to be executed directly**
+* It is imported by later phases (logging, Windows service, GUI)
+* A `sys.path` fix was added to allow correct imports when used standalone
+
+---
+
+## Corrections & Fixes Made During Phase 04
+
+* Corrected directory name to `P4_Edge_Deployment`
+* Clarified which files are runners vs libraries
+* Fixed missing `import sys / os` for project-root imports
+* Confirmed that `edge_inference.py` should not be run directly
+
+No algorithmic changes were required.
+
+---
+
+## Final Phase 04 Outcome
+
+* Core Autoencoder **unchanged**
+* Robustness preserved and confirmed
+* Edge-safe inference pipeline completed
+* Ready for:
+
+  * logging
+  * alerting
+  * Windows integration
+
+---
+
+## Phase 04 Status
+
+**COMPLETE**

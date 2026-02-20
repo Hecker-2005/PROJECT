@@ -1,0 +1,62 @@
+Below is the file structure of the current PROJECT folder:
+
+PROJECT/
+│
+├── 0_Datasets/
+│   ├── CICIDS2017/
+│   │   ├── cicids2017.csv                # FINAL merged CICIDS dataset (with BENIGN)
+		
+│   │   └── UNMERGED_DATASETS/             # Raw CICIDS daily CSVs (no merged files)
+		Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv                                                        
+		Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv
+		Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv  
+		Monday-WorkingHours.pcap_ISCX.csv                            
+		Tuesday-WorkingHours.pcap_ISCX.csv
+		Friday-WorkingHours-Morning.pcap_ISCX.csv             
+		Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv  
+		Wednesday-workingHours.pcap_ISCX.csv
+
+│   │
+│   └── UNSW_NB15/
+│       └── UNSW_NB15.csv
+│
+├── 1_Preprocessing/
+│   ├── data_cleaning.py                  # Cleans raw datasets, maps labels
+│   ├── feature_engineering.py            # Feature selection + scaling
+│   ├── cicids_clean.parquet              # Cleaned CICIDS (used everywhere)
+│   ├── unsw_clean.parquet                # Cleaned UNSW (future use)
+│   ├── scaler_persistence.pkl            # StandardScaler + feature list
+│   └── label_map.joblib                  # Label → Attack_Class mapping
+│
+├── 2_Model_Training/
+│   ├── isolation_forest/                 # Phase 2A – Classical baseline
+│   │   ├── iforest_core.py               # Isolation Forest (from scratch)
+│   │   ├── train_iforest.py              # Train Isolation Forest
+│   │   ├── evaluate_baseline.py          # Evaluate Isolation Forest
+│   │   └── iforest_model.joblib           # Trained IF model
+│   │
+│   └── pytorch_model/                    # Phase 2B – Deep baseline
+│       ├── model_architecture.py         # Autoencoder architecture
+│       ├── train_autoencoder.py           # Benign-only AE training
+│       ├── evaluate_autoencoder.py        # Reconstruction-based evaluation
+│       └── autoencoder.pt                # Trained AE weights
+│
+├── 3_Adversarial_Testing/                # Phase 03 (NEXT – not started)
+│   └── (empty / to be implemented)
+│
+├── 4_Edge_Deployment/                    # Future phase
+│
+├── 5_WindowsAgent/                       # Future phase
+│
+├── 6_Research_&_Benchmarking/             # Papers, comparisons, notes
+│
+├── 7_Documentation/
+│   └── Phase_01-Phase_02.txt              # Continuity document
+│
+├── 8_Tools/
+│
+├── 9_Project_Control/
+│
+├── venv/                                 # Python virtual environment
+│
+└── README.md
